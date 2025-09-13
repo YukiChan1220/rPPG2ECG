@@ -37,8 +37,8 @@ def main():
     path = input().strip()
     video2frame.path = path
     result_logger = ResultLogger(path + "/rppg_log.csv")
-    file_merger = FileMerger([path + "/rppg_log.csv", path + "/ecg_log.csv"], path + "/test_merged_log.csv")
-    normalizer = Normalizer(path + "/test_merged_log.csv", path + "/test_normalized_log.csv")
+    file_merger = FileMerger([path + "/rppg_log.csv", path + "/ecg_log.csv"], path + "/merged_log.csv")
+    normalizer = Normalizer(path + "/merged_log.csv", path + "/normalized_log.csv")
 
     threads = []
 
