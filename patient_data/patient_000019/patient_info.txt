@@ -1,3 +1,0 @@
-Patient ID: 000019
-Session Timestamp: 2025-09-03 19:35:54
-Patient Info: "{\"patient_id\":\"61030385\",\"vitals\":{\"heart_rate\":\"77bpm\",\"respiratory_rate\":\"20bpm\",\"temperature\":\"36.4℃\",\"blood_pressure\":\"132\\/72\"}}"
