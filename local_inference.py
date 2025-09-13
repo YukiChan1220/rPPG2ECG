@@ -9,22 +9,23 @@ from log.normalize import Normalizer
 import threading
 import time
 
+import os
 import sys
 import signal
 
 def signal_handler(sig, frame):
     global_vars.user_interrupt = True
 
-def main():
-    signal.signal(signal.SIGINT, signal_handler)
-
+def inference(model_choice="Step", path=None):
+    if os.path.isdir(path) is False:
+        print(f"Error: {path} is not a valid directory.")
+        return
+    
     model_choice = "Step"
     preprocess_queue = Queue()
     result_queue = Queue()
     video2frame = v2f.Video2Frame()
-    path = None
     
-
     if model_choice == "Step":
         model = Step(
             model_path="./model/models/onnx/step.onnx",
@@ -33,8 +34,7 @@ def main():
         )
 
     global_vars.user_interrupt = False
-    print("Input inference path:")
-    path = input().strip()
+    
     video2frame.path = path
     result_logger = ResultLogger(path + "/rppg_log.csv")
     file_merger = FileMerger([path + "/rppg_log.csv", path + "/ecg_log.csv"], path + "/merged_log.csv")
@@ -72,7 +72,16 @@ def main():
         print("Inference completed. Results logged.")
 
     else:
-        print("Program was interrupted")
+        print("Inference was interrupted")
+
+def main():
+    signal.signal(signal.SIGINT, signal_handler)
+
+    print("Input inference path:")
+    path = input().strip()
+    for dir in os.listdir(path):
+        if os.path.isdir(os.path.join(path, dir)):
+            inference(path=os.path.join(path, dir))
 
 if __name__ == "__main__":
     main()
