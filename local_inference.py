@@ -1,0 +1,78 @@
+import global_vars
+from queue import Queue
+from model.physnet import PhysNet
+from model.step import Step
+import preprocess.video2frame as v2f
+from log.result_log import ResultLogger
+from log.merge import FileMerger
+from log.normalize import Normalizer
+import threading
+import time
+
+import sys
+import signal
+
+def signal_handler(sig, frame):
+    global_vars.user_interrupt = True
+
+def main():
+    signal.signal(signal.SIGINT, signal_handler)
+
+    model_choice = "Step"
+    preprocess_queue = Queue()
+    result_queue = Queue()
+    video2frame = v2f.Video2Frame()
+    path = None
+    
+
+    if model_choice == "Step":
+        model = Step(
+            model_path="./model/models/onnx/step.onnx",
+            state_path="./model/models/onnx/state.pkl",
+            dt=1 / 30
+        )
+
+    global_vars.user_interrupt = False
+    print("Input inference path:")
+    path = input().strip()
+    video2frame.path = path
+    result_logger = ResultLogger(path + "/rppg_log.csv")
+    file_merger = FileMerger([path + "/rppg_log.csv", path + "/ecg_log.csv"], path + "/test_merged_log.csv")
+    normalizer = Normalizer(path + "/test_merged_log.csv", path + "/test_normalized_log.csv")
+
+    threads = []
+
+    preprocess_thread = threading.Thread(target=video2frame, args=(preprocess_queue,))
+    model_thread = threading.Thread(target=model, args=(preprocess_queue, result_queue))
+
+    threads.append(preprocess_thread)
+    threads.append(model_thread)
+
+    for thread in threads:
+        thread.start()
+
+    try:
+        while not (global_vars.inference_completed and global_vars.preprocess_completed):
+            if global_vars.user_interrupt:
+                break
+            time.sleep(1)
+            print("Preprocessed frames:", video2frame.processed_frames)
+    except KeyboardInterrupt:
+        global_vars.user_interrupt = True
+
+    for thread in threads:
+        thread.join(timeout=5)
+
+    if not global_vars.user_interrupt:
+        result_logger.log(result_queue)
+        time.sleep(0.5)
+        file_merger()
+        time.sleep(0.5)
+        normalizer()
+        print("Inference completed. Results logged.")
+
+    else:
+        print("Program was interrupted")
+
+if __name__ == "__main__":
+    main()
