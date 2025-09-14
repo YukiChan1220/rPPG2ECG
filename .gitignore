@@ -1,1 +1,3 @@
 /patient_data
+/cleaned_data
+*.pyc

@@ -61,7 +61,7 @@ def clean_signal(sig: np.ndarray, fs, config: dict):
     return mask
 
 
-def plot_signals(ecg_ax, rppg_ax, time, ecg_signal, ecg_mask, rppg_signal, rppg_mask, ecg_event_handler, rppg_event_handler):
+def plot_signals(ecg_ax, rppg_ax, time, ecg_signal, ecg_mask, rppg_signal, rppg_mask, event_handler):
     ecg_ax.plot(time, ecg_signal, label='ECG Signal', alpha=0.7)
     ecg_ax.fill_between(time, ecg_signal, where=~ecg_mask, color='red', alpha=0.7, label='Marked Artifacts')
     ecg_ax.set_xlabel('Time')
@@ -79,13 +79,13 @@ def plot_signals(ecg_ax, rppg_ax, time, ecg_signal, ecg_mask, rppg_signal, rppg_
     rppg_ax.grid()
 
     plt.draw()
-    while not ecg_event_handler.status or not rppg_event_handler.status:
+    while not event_handler.status:
         plt.pause(0.1)
     ecg_ax.cla()
     rppg_ax.cla()
-    ecg_event_handler.status = False
-    rppg_event_handler.status = False
-    return ecg_event_handler.accept, rppg_event_handler.accept
+    event_handler.status = False
+    return event_handler.accept
+
 
 
 class PltEventHandler:
@@ -109,6 +109,7 @@ def log_cleaned_data(file_path, time, ecg_signal, rppg_signal, rppg_mask, ecg_ma
     clean_windows = []
     window_begin = 0
     window_end = 0
+    file_idx = 0
 
     while window_begin < len(time):
         if rppg_mask[window_begin] and ecg_mask[window_begin]:
@@ -119,48 +120,48 @@ def log_cleaned_data(file_path, time, ecg_signal, rppg_signal, rppg_mask, ecg_ma
             window_end = window_begin + 1
         window_begin = window_end + 1
 
-    for file_idx in range(len(clean_windows)):
-        start, end = clean_windows[file_idx]
+    for idx in range(len(clean_windows)):
+        start, end = clean_windows[idx]
         if start < end:
             with open(file_path.replace('.csv', f'_{file_idx+1}.csv'), 'w') as f:
                 f.write("Time,rPPG,ECG\n")
                 for i in range(start, end):
                     f.write(f"{time[i]},{rppg_signal[i]},{ecg_signal[i]}\n")
+                file_idx += 1
 
     print(f"Cleaned data logged to {file_path}")
 
 def show_cleaned_data(file_path):
+    fig, (ecg_ax, rppg_ax) = plt.subplots(2, 1, figsize=(20, 12))
+    plt.subplots_adjust(bottom=0.15)
+    event_handler = PltEventHandler()
+    accept = plt.axes([0.7, 0.15, 0.1, 0.05])
+    reject = plt.axes([0.81, 0.15, 0.1, 0.05])
+    baccept = plt.Button(accept, 'Accept')
+    breject = plt.Button(reject, 'Reject')
+    baccept.on_clicked(event_handler.accept_handler())
+    breject.on_clicked(event_handler.reject_handler())
+
     for path in os.listdir(file_path):
         if os.path.isfile(os.path.join(file_path, path)) and path.endswith('.csv'):
-            time, rppg_signal = load_signal_from_merged_log(os.path.join(file_path, path), 1)
-            _, ecg_signal = load_signal_from_merged_log(os.path.join(file_path, path), 2)
-
-            plt.figure(figsize=(20, 6))
-            plt.subplot(2, 1, 1)
-            plt.plot(time, rppg_signal, label='RPPG Signal', alpha=0.7)
-            plt.xlabel('Time')
-            plt.ylabel('Amplitude')
-            plt.title(f'RPPG Signal - {path}')
-            plt.legend()
-            plt.grid()
-
-            plt.subplot(2, 1, 2)
-            plt.plot(time, ecg_signal, label='ECG Signal', alpha=0.7)
-            plt.xlabel('Time')
-            plt.ylabel('Amplitude')
-            plt.title(f'ECG Signal - {path}')
-            plt.legend()
-            plt.grid()
-
-            plt.tight_layout()
-            plt.show()
-            input("Press Enter to continue to the next file...")
+            try:
+                time, rppg_signal = load_signal_from_merged_log(os.path.join(file_path, path), 1)
+                _, ecg_signal = load_signal_from_merged_log(os.path.join(file_path, path), 2)
+                mask = np.ones(len(rppg_signal), dtype=bool)
+                mask[:] = True
+                plt.ion()
+                accepted = plot_signals(ecg_ax, rppg_ax, time, ecg_signal, mask, rppg_signal, mask, event_handler)
+                if not accepted:
+                    os.remove(os.path.join(file_path, path))
+                    print(f"Data in {path} rejected by user.")
+            except Exception as e:
+                print(f"Error displaying {path}: {e}")
+                continue
+    
+    plt.close()
 
 
-def main():
-    fs = 512
-    file_path = input("Enter patient data path: ").strip()
-
+def clean_data(patient_data_path, fs=512):
     ecg_clean_config = {
         "std": {
             "window_size": 1,
@@ -181,36 +182,29 @@ def main():
 
     plt.ion()
     fig, (ecg_ax, rppg_ax) = plt.subplots(2, 1, figsize=(20, 12))
-    plt.subplots_adjust(bottom=0.25)
-    ecg_event_handler = PltEventHandler()
-    rppg_event_handler = PltEventHandler()
-    ecgaccept = plt.axes([0.7, 0.15, 0.1, 0.05])
-    ecgreject = plt.axes([0.81, 0.15, 0.1, 0.05])
-    rppgaccept = plt.axes([0.7, 0.05, 0.1, 0.05])
-    rppgreject = plt.axes([0.81, 0.05, 0.1, 0.05])
-    becgaccept = plt.Button(ecgaccept, 'Accept')
-    becgreject = plt.Button(ecgreject, 'Reject')
-    brppgaccept = plt.Button(rppgaccept, 'Accept')
-    brppgreject = plt.Button(rppgreject, 'Reject')
-    becgaccept.on_clicked(ecg_event_handler.accept_handler())
-    becgreject.on_clicked(ecg_event_handler.reject_handler())
-    brppgaccept.on_clicked(rppg_event_handler.accept_handler())
-    brppgreject.on_clicked(rppg_event_handler.reject_handler())
+    plt.subplots_adjust(bottom=0.15)
+    event_handler = PltEventHandler()
+    accept = plt.axes([0.7, 0.05, 0.1, 0.05])
+    reject = plt.axes([0.81, 0.05, 0.1, 0.05])
+    baccept = plt.Button(accept, 'Accept')
+    breject = plt.Button(reject, 'Reject')
+    baccept.on_clicked(event_handler.accept_handler())
+    breject.on_clicked(event_handler.reject_handler())
 
 
     # 逐一人工检查数据
-    for dir in os.listdir(file_path):
-        if os.path.isdir(os.path.join(file_path, dir)):
+    for dir in os.listdir(patient_data_path):
+        if os.path.isdir(os.path.join(patient_data_path, dir)):
             try:
-                ecg_time, ecg_signal = load_signal_from_merged_log(file_path + "/" + dir + "/normalized_log.csv", 2)
+                ecg_time, ecg_signal = load_signal_from_merged_log(patient_data_path + "/" + dir + "/normalized_log.csv", 2)
                 ecg_mask = clean_signal(ecg_signal, fs, ecg_clean_config)
-                rppg_time, rppg_signal = load_signal_from_merged_log(file_path + "/" + dir + "/normalized_log.csv", 1)
+                rppg_time, rppg_signal = load_signal_from_merged_log(patient_data_path + "/" + dir + "/normalized_log.csv", 1)
                 rppg_mask = clean_signal(rppg_signal, fs, rppg_clean_config)
-                ecg_accepted, rppg_accepted = plot_signals(
+                accepted = plot_signals(
                     ecg_ax, rppg_ax, ecg_time, ecg_signal, ecg_mask, rppg_signal, rppg_mask,
-                    ecg_event_handler, rppg_event_handler
+                    event_handler
                 )
-                if ecg_accepted and rppg_accepted:
+                if accepted:
                     try:
                         log_cleaned_data("./cleaned_data/" + dir + ".csv", ecg_time, ecg_signal, rppg_signal, rppg_mask, ecg_mask)
                     except Exception as e:
@@ -219,7 +213,17 @@ def main():
                 print(f"Error processing {dir}: {e}")
                 continue
 
+    plt.close()
+
+def main():
+    fs = 512
+    file_path = input("Enter patient data path: ").strip()
+
+    clean_data(file_path, fs)
+
     # 逐一查看清洗后的数据
+
+    show_cleaned_data("./cleaned_data")
 
 if __name__ == "__main__":
     main()
