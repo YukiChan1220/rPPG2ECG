@@ -105,8 +105,59 @@ class PltEventHandler:
             self.accept = False
         return handler
 
+def log_cleaned_data(file_path, time, ecg_signal, rppg_signal, rppg_mask, ecg_mask):
+    clean_windows = []
+    window_begin = 0
+    window_end = 0
+
+    while window_begin < len(time):
+        if rppg_mask[window_begin] and ecg_mask[window_begin]:
+            while window_end < len(time) and rppg_mask[window_end] and ecg_mask[window_end]:
+                window_end += 1
+            clean_windows.append((window_begin, window_end))
+        if window_end <= window_begin:
+            window_end = window_begin + 1
+        window_begin = window_end + 1
+
+    for file_idx in range(len(clean_windows)):
+        start, end = clean_windows[file_idx]
+        if start < end:
+            with open(file_path.replace('.csv', f'_{file_idx+1}.csv'), 'w') as f:
+                f.write("Time,rPPG,ECG\n")
+                for i in range(start, end):
+                    f.write(f"{time[i]},{rppg_signal[i]},{ecg_signal[i]}\n")
+
+    print(f"Cleaned data logged to {file_path}")
+
+def show_cleaned_data(file_path):
+    for path in os.listdir(file_path):
+        if os.path.isfile(os.path.join(file_path, path)) and path.endswith('.csv'):
+            time, rppg_signal = load_signal_from_merged_log(os.path.join(file_path, path), 1)
+            _, ecg_signal = load_signal_from_merged_log(os.path.join(file_path, path), 2)
+
+            plt.figure(figsize=(20, 6))
+            plt.subplot(2, 1, 1)
+            plt.plot(time, rppg_signal, label='RPPG Signal', alpha=0.7)
+            plt.xlabel('Time')
+            plt.ylabel('Amplitude')
+            plt.title(f'RPPG Signal - {path}')
+            plt.legend()
+            plt.grid()
+
+            plt.subplot(2, 1, 2)
+            plt.plot(time, ecg_signal, label='ECG Signal', alpha=0.7)
+            plt.xlabel('Time')
+            plt.ylabel('Amplitude')
+            plt.title(f'ECG Signal - {path}')
+            plt.legend()
+            plt.grid()
+
+            plt.tight_layout()
+            plt.show()
+            input("Press Enter to continue to the next file...")
+
+
 def main():
-    file_path = None
     fs = 512
     file_path = input("Enter patient data path: ").strip()
 
@@ -147,17 +198,28 @@ def main():
     brppgreject.on_clicked(rppg_event_handler.reject_handler())
 
 
+    # 逐一人工检查数据
     for dir in os.listdir(file_path):
         if os.path.isdir(os.path.join(file_path, dir)):
-            ecg_time, ecg_signal = load_signal_from_merged_log(file_path + "/" + dir + "/normalized_log.csv", 2)
-            ecg_mask = clean_signal(ecg_signal, fs, ecg_clean_config)
-            rppg_time, rppg_signal = load_signal_from_merged_log(file_path + "/" + dir + "/normalized_log.csv", 1)
-            rppg_mask = clean_signal(rppg_signal, fs, rppg_clean_config)
-            ecg_accepted, rppg_accepted = plot_signals(
-                ecg_ax, rppg_ax, ecg_time, ecg_signal, ecg_mask, rppg_signal, rppg_mask,
-                ecg_event_handler, rppg_event_handler
-            )
+            try:
+                ecg_time, ecg_signal = load_signal_from_merged_log(file_path + "/" + dir + "/normalized_log.csv", 2)
+                ecg_mask = clean_signal(ecg_signal, fs, ecg_clean_config)
+                rppg_time, rppg_signal = load_signal_from_merged_log(file_path + "/" + dir + "/normalized_log.csv", 1)
+                rppg_mask = clean_signal(rppg_signal, fs, rppg_clean_config)
+                ecg_accepted, rppg_accepted = plot_signals(
+                    ecg_ax, rppg_ax, ecg_time, ecg_signal, ecg_mask, rppg_signal, rppg_mask,
+                    ecg_event_handler, rppg_event_handler
+                )
+                if ecg_accepted and rppg_accepted:
+                    try:
+                        log_cleaned_data("./cleaned_data/" + dir + ".csv", ecg_time, ecg_signal, rppg_signal, rppg_mask, ecg_mask)
+                    except Exception as e:
+                        print(f"Error logging cleaned data for {dir}: {e}")
+            except Exception as e:
+                print(f"Error processing {dir}: {e}")
+                continue
 
+    # 逐一查看清洗后的数据
 
 if __name__ == "__main__":
     main()

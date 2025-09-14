@@ -3,7 +3,6 @@ from torch.utils.data import Dataset
 
 class RPPG2ECGDataset(Dataset):
     def __init__(self, X_rppg_list, Y_ecg_list, window_samples):
-        # X_rppg_list, Y_ecg_list: list of 1D numpy arrays, already same fs & preprocessed
         self.windows = []
         for r, e in zip(X_rppg_list, Y_ecg_list):
             n = len(r)
