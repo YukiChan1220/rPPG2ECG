@@ -1,5 +1,6 @@
 import torch
 from torch.utils.data import Dataset
+import numpy as np
 
 class RPPG2ECGDataset(Dataset):
     def __init__(self, X_rppg_list, Y_ecg_list, window_samples):
@@ -8,8 +9,8 @@ class RPPG2ECGDataset(Dataset):
             n = len(r)
             step = window_samples // 2
             for i in range(0, n-window_samples+1, step):
-                xr = r[i:i+window_samples]
-                ye = e[i:i+window_samples]
+                xr = np.array(r[i:i+window_samples])
+                ye = np.array(e[i:i+window_samples])
                 self.windows.append((xr.astype('float32'), ye.astype('float32')))
 
     def __len__(self): return len(self.windows)

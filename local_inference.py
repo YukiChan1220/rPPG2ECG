@@ -52,11 +52,14 @@ def inference(model_choice="Step", path=None):
         thread.start()
 
     try:
+        message_printed = False
         while not (global_vars.inference_completed and global_vars.preprocess_completed):
             if global_vars.user_interrupt:
                 break
             time.sleep(1)
-            print("Preprocessed frames:", video2frame.processed_frames)
+            if not message_printed:
+                print("Preprocessed frames:", video2frame.processed_frames)
+                message_printed = True
     except KeyboardInterrupt:
         global_vars.user_interrupt = True
 
@@ -69,7 +72,7 @@ def inference(model_choice="Step", path=None):
         file_merger()
         time.sleep(0.5)
         normalizer()
-        print("Inference completed. Results logged.")
+        print("Inference on {} completed. Results logged.".format(path))
 
     else:
         print("Inference was interrupted")

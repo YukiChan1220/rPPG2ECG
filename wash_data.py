@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.signal as signal
 import os
+import pandas as pd
 
 def load_signal_from_merged_log(file_path, data_col):
     time = []
@@ -84,7 +85,7 @@ def plot_signals(ecg_ax, rppg_ax, time, ecg_signal, ecg_mask, rppg_signal, rppg_
     ecg_ax.cla()
     rppg_ax.cla()
     event_handler.status = False
-    return event_handler.accept
+    return event_handler.accept, event_handler.reverse
 
 
 
@@ -92,17 +93,27 @@ class PltEventHandler:
     def __init__(self):
         self.status = False
         self.accept = False
+        self.reverse = False
 
     def accept_handler(self):
         def handler(event):
             self.status = True
             self.accept = True
+            self.reverse = False
         return handler
 
     def reject_handler(self):
         def handler(event):
             self.status = True
             self.accept = False
+            self.reverse = False
+        return handler
+    
+    def reverse_handler(self):
+        def handler(event):
+            self.status = True
+            self.accept = True
+            self.reverse = True
         return handler
 
 def log_cleaned_data(file_path, time, ecg_signal, rppg_signal, rppg_mask, ecg_mask):
@@ -135,12 +146,15 @@ def show_cleaned_data(file_path):
     fig, (ecg_ax, rppg_ax) = plt.subplots(2, 1, figsize=(20, 12))
     plt.subplots_adjust(bottom=0.15)
     event_handler = PltEventHandler()
-    accept = plt.axes([0.7, 0.15, 0.1, 0.05])
-    reject = plt.axes([0.81, 0.15, 0.1, 0.05])
+    accept = plt.axes([0.7, 0.05, 0.1, 0.05])
+    reject = plt.axes([0.81, 0.05, 0.1, 0.05])
+    reverse = plt.axes([0.59, 0.05, 0.1, 0.05])
     baccept = plt.Button(accept, 'Accept')
     breject = plt.Button(reject, 'Reject')
+    breverse = plt.Button(reverse, 'Reverse')
     baccept.on_clicked(event_handler.accept_handler())
     breject.on_clicked(event_handler.reject_handler())
+    breverse.on_clicked(event_handler.reverse_handler())
 
     for path in os.listdir(file_path):
         if os.path.isfile(os.path.join(file_path, path)) and path.endswith('.csv'):
@@ -150,10 +164,24 @@ def show_cleaned_data(file_path):
                 mask = np.ones(len(rppg_signal), dtype=bool)
                 mask[:] = True
                 plt.ion()
-                accepted = plot_signals(ecg_ax, rppg_ax, time, ecg_signal, mask, rppg_signal, mask, event_handler)
+                accepted, reversed = plot_signals(ecg_ax, rppg_ax, time, ecg_signal, mask, rppg_signal, mask, event_handler)
                 if not accepted:
                     os.remove(os.path.join(file_path, path))
                     print(f"Data in {path} rejected by user.")
+                else:
+                    # 标准差归一化
+                    if reversed:
+                        ecg_signal = -ecg_signal
+                    rppg_signal = (rppg_signal - np.mean(rppg_signal)) / np.std(rppg_signal)
+                    ecg_signal = (ecg_signal - np.mean(ecg_signal)) / np.std(ecg_signal)
+                    df = pd.DataFrame({
+                        'Time': time,
+                        'rPPG': rppg_signal,
+                        'ECG': ecg_signal
+                    })
+                    df.to_csv(os.path.join(file_path, path), index=False)
+                    print(f"Data in {path} accepted and normalized by user.")
+
             except Exception as e:
                 print(f"Error displaying {path}: {e}")
                 continue
@@ -200,7 +228,7 @@ def clean_data(patient_data_path, fs=512):
                 ecg_mask = clean_signal(ecg_signal, fs, ecg_clean_config)
                 rppg_time, rppg_signal = load_signal_from_merged_log(patient_data_path + "/" + dir + "/normalized_log.csv", 1)
                 rppg_mask = clean_signal(rppg_signal, fs, rppg_clean_config)
-                accepted = plot_signals(
+                accepted, _ = plot_signals(
                     ecg_ax, rppg_ax, ecg_time, ecg_signal, ecg_mask, rppg_signal, rppg_mask,
                     event_handler
                 )

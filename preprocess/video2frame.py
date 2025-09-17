@@ -47,7 +47,12 @@ class Video2Frame(PreprocessBase):
         self.cap = cv2.VideoCapture(self.video_path)
 
         if not self.cap.isOpened():
+            self.cap.release()
+            global_vars.preprocess_completed = True
+            return
             raise ValueError(f"Error opening video file: {self.video_path}")
+
+        
 
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
