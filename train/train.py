@@ -91,17 +91,18 @@ def shape_loss(pred, target):
 
 def main():
     device = torch.device("cpu")
+    data_dir = "./cleaned_data"
 
-    model = UNet().to(device)
+    model = SimpleConvAE().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     mseloss = torch.nn.MSELoss()
     maeloss = torch.nn.L1Loss()
     def criterion(pred, target):
-        mse_loss_weight = 0.4
-        mae_loss_weight = 0.3
-        freq_loss_weight = 0.1
-        rmssd_loss_weight = 0.2
-        shape_loss_weight = 0.1
+        mse_loss_weight = 0.7
+        mae_loss_weight = 0.0
+        freq_loss_weight = 0.2
+        rmssd_loss_weight = 0.1
+        shape_loss_weight = 0.0
         return (mse_loss_weight * mseloss(pred, target) + 
                 mae_loss_weight * maeloss(pred, target) +
                 freq_loss_weight * frequency_loss(pred, target) +
@@ -112,18 +113,22 @@ def main():
 
     counter = 0
     datapoints = 0
-    for file in os.listdir("./cleaned_data"):
-        if file.endswith(".csv") and not file.find("000019") > 0:
-            print(f"Loading files {counter} / {len(os.listdir('./cleaned_data'))}")
-            counter += 1
-            with open(os.path.join("./cleaned_data", file), 'r') as f:
-                next(f)  # Skip header
-                data = [list(map(float, line.strip().split(','))) for line in f if line.strip()]
-                X_rppg = [row[1] for row in data]
-                Y_ecg = [row[2] for row in data]
-                datapoints += len(X_rppg)
-            dataset = RPPG2ECGDataset([X_rppg], [Y_ecg], window_samples=1024)
-            loaders.append(torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=True))
+    for file in os.listdir(data_dir):
+        try:
+            if file.endswith(".csv") and not file.find("000019") > 0:
+                print(f"Loading files {counter} / {len(os.listdir(data_dir))}")
+                counter += 1
+                with open(os.path.join(data_dir, file), 'r') as f:
+                    next(f)  # Skip header
+                    data = [list(map(float, line.strip().split(','))) for line in f if line.strip()]
+                    X_rppg = [row[1] for row in data]
+                    Y_ecg = [row[2] for row in data]
+                    datapoints += len(X_rppg)
+                dataset = RPPG2ECGDataset([X_rppg], [Y_ecg], window_samples=1024)
+                loaders.append(torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=True))
+        except Exception as e:
+            print(f"Error loading {file}: {e}")
+            continue
     print(f"Total {datapoints} data points loaded from {counter} files.")
 
     for epoch in range(epochs):
@@ -140,7 +145,7 @@ def main():
 
     model.eval()
 
-    with open("./cleaned_data/patient_000019_5.csv", 'r') as f:
+    with open("{}/patient_000019_5.csv".format(data_dir), 'r') as f:
         next(f)  # Skip header
         data = [list(map(float, line.strip().split(','))) for line in f if line.strip()]
         X_rppg = [row[1] for row in data]

@@ -50,6 +50,9 @@ def extract_patient_info(data_dir):
                 print(f"Error reading {patient_file}: {e}")
                 continue
 
+    # show how many individual hospital_patient_ids are extracted
+    unique_hospital_ids = set(info['hospital_patient_id'] for info in patient_info_list)
+    print(f"Extracted information for {len(unique_hospital_ids)} unique hospital patient IDs.")
     return patient_info_list
 
 def save_to_csv(patient_info_list, output_file):

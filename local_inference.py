@@ -1,6 +1,5 @@
 import global_vars
 from queue import Queue
-from model.physnet import PhysNet
 from model.step import Step
 import preprocess.video2frame as v2f
 from log.result_log import ResultLogger
@@ -65,6 +64,8 @@ def inference(model_choice="Step", path=None):
 
     for thread in threads:
         thread.join(timeout=5)
+        if thread.is_alive():
+            print(f"Warning: Thread {thread.name} did not terminate in time.")
 
     if not global_vars.user_interrupt:
         result_logger.log(result_queue)
@@ -77,14 +78,47 @@ def inference(model_choice="Step", path=None):
     else:
         print("Inference was interrupted")
 
+def inference_handler(path, dir):
+    try:
+        with open(os.path.join(path, dir, "video.avi.ts"), 'r') as f:
+            f.readline()
+            video_begin_time = float(f.readline().strip().split(', ')[1])
+        with open(os.path.join(path, dir, "ecg_log.csv"), 'r') as f:
+            f.readline()
+            ecg_begin_time = float(f.readline().strip().split(',')[0])
+        if abs(video_begin_time - ecg_begin_time) > 3.0:
+            print(f"Warning: Time difference between video and ECG for {dir} is greater than 3 seconds.")
+            with open("time_diff_warning.txt", 'a') as f:
+                f.write(f"path: {os.path.join(path, dir)}, time difference: {abs(video_begin_time - ecg_begin_time)} seconds\n")
+        inference(path=os.path.join(path, dir))
+    except Exception as e:
+        print(f"Error processing {dir}: {e}")
+
 def main():
     signal.signal(signal.SIGINT, signal_handler)
+    path = input("Input inference path:").strip()
+    starting_point = input("Input starting point (default 0, -1 for smart inference):").strip()
+    if starting_point.isdigit() and int(starting_point) > 0:
+        for dir in os.listdir(path):
+            if os.path.isdir(os.path.join(path, dir)):
+                if int(dir[8:]) < int(starting_point):
+                    print(f"Skipping {dir} as it is before starting point {starting_point}")
+                    continue
+                inference_handler(path, dir)
+                if global_vars.user_interrupt:
+                    break
 
-    print("Input inference path:")
-    path = input().strip()
-    for dir in os.listdir(path):
-        if os.path.isdir(os.path.join(path, dir)):
-            inference(path=os.path.join(path, dir))
+    elif starting_point == "-1":
+        for dir in os.listdir(path):
+            if os.path.isdir(os.path.join(path, dir)):
+                with open (os.path.join(path, dir, "rppg_log.csv"), 'r') as f:
+                    lines = f.readlines()
+                    if len(lines) > 1:
+                        print(f"Skipping {dir}: already processed.")
+                        continue
+                inference_handler(path, dir)
+                if global_vars.user_interrupt:
+                    break
 
 if __name__ == "__main__":
     main()
