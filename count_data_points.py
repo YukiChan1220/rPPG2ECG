@@ -7,7 +7,7 @@ def count_raw_data_points(data_dir = "./patient_data", start_idx=0, end_idx=None
             file_path = os.path.join(data_dir, f, "merged_log.csv")
             df = pd.read_csv(file_path)
             total_points += len(df)
-    print(f"TRaw: from {start_idx} to {end_idx}: {total_points}")
+    print(f"TRaw: from {start_idx} to {end_idx}: {total_points}, {total_points/(60*512):.2f} minutes")
     return total_points
 
 def count_cleaned_data_points(data_dir = "./test_cleaned", start_idx=0, end_idx=None):
@@ -17,8 +17,9 @@ def count_cleaned_data_points(data_dir = "./test_cleaned", start_idx=0, end_idx=
             file_path = os.path.join(data_dir, f)
             df = pd.read_csv(file_path)
             total_points += len(df)
-    print(f"Cleaned: from {start_idx} to {end_idx}: {total_points}")
+    print(f"Cleaned: from {start_idx} to {end_idx}: {total_points}, {total_points/(60*512):.2f} minutes")
     return total_points
 
-count_raw_data_points(start_idx=218)
-count_cleaned_data_points(start_idx=218)
+idx = 232
+count_raw_data_points(start_idx=idx)
+count_cleaned_data_points(start_idx=idx)
