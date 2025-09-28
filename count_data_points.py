@@ -20,6 +20,6 @@ def count_cleaned_data_points(data_dir = "./test_cleaned", start_idx=0, end_idx=
     print(f"Cleaned: from {start_idx} to {end_idx}: {total_points}, {total_points/(60*512):.2f} minutes")
     return total_points
 
-idx = 232
+idx = 255
 count_raw_data_points(start_idx=idx)
 count_cleaned_data_points(start_idx=idx)

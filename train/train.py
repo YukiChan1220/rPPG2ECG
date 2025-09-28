@@ -91,24 +91,16 @@ def shape_loss(pred, target):
 
 def main():
     device = torch.device("cpu")
-    data_dir = "./cleaned_data"
+    data_dir = "./test_cleaned"
+    # data_dir = "./cleaned_data"
 
     model = SimpleConvAE().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     mseloss = torch.nn.MSELoss()
-    maeloss = torch.nn.L1Loss()
     def criterion(pred, target):
-        mse_loss_weight = 0.7
-        mae_loss_weight = 0.0
-        freq_loss_weight = 0.2
-        rmssd_loss_weight = 0.1
-        shape_loss_weight = 0.0
-        return (mse_loss_weight * mseloss(pred, target) + 
-                mae_loss_weight * maeloss(pred, target) +
-                freq_loss_weight * frequency_loss(pred, target) +
-                rmssd_loss_weight * rmssd_loss(pred, target) +
-                shape_loss_weight * shape_loss(pred, target))
-    epochs = 10
+        mse_loss_weight = 1
+        return mse_loss_weight * mseloss(pred, target)
+    epochs = 50
     loaders = []
 
     counter = 0
@@ -132,8 +124,6 @@ def main():
     print(f"Total {datapoints} data points loaded from {counter} files.")
 
     for epoch in range(epochs):
-        time_loss_weight = 0.7
-        freq_loss_weight = 1 - time_loss_weight
         print(f"Epoch {epoch+1}/{epochs}")
         model.train()
         for train_loader in loaders:
@@ -144,6 +134,8 @@ def main():
                 opt.zero_grad(); loss.backward(); opt.step()
 
     model.eval()
+    torch.onnx.export(model, torch.randn(1,1,1024).to(device), "rppg2ecg.onnx", input_names=['input'], output_names=['output'], dynamic_axes={'input': {2: 'length'}, 'output': {2: 'length'}})
+
 
     with open("{}/patient_000019_5.csv".format(data_dir), 'r') as f:
         next(f)  # Skip header
