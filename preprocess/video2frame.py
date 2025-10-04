@@ -30,7 +30,7 @@ class Video2Frame(PreprocessBase):
             with open(self.ts_path, 'r') as f:
                 lines = f.readlines()
                 for line in lines[1:]:  # Skip header
-                    parts = line.strip().split(', ')
+                    parts = line.strip().split(',')
                     if len(parts) == 2:
                         timestamps.append(float(parts[1]))
         except Exception as e:

@@ -82,7 +82,7 @@ def inference_handler(path, dir):
     try:
         with open(os.path.join(path, dir, "video.avi.ts"), 'r') as f:
             f.readline()
-            video_begin_time = float(f.readline().strip().split(', ')[1])
+            video_begin_time = float(f.readline().strip().split(',')[1])
         with open(os.path.join(path, dir, "ecg_log.csv"), 'r') as f:
             f.readline()
             ecg_begin_time = float(f.readline().strip().split(',')[0])

@@ -3,12 +3,27 @@ import json
 import csv
 
 class PatientInfo:
-    def __init__(self, data_dir, save_dir="patient_info.csv"):
+    def __init__(self, data_dir, save_dir="patient_info.csv", mode="file"):
         self.data_dir = data_dir
         self.save_dir = save_dir
         self.patient_info_list = None
+        self.mode = mode  # "file" or "dir"
 
-    def extract(self, data_dir=None):
+    def extract(self, data_dir=None, data_file=None):
+        if self.mode == "file":
+            return self._file_extract(data_file)
+        elif self.mode == "dir":
+            return self._dir_extract(data_dir)
+
+    def _file_extract(self, data_file):
+        self.patient_info_list = []
+        with open(data_file, 'r') as f:
+            reader = csv.DictReader(f, fieldnames=['lab_patient_id', 'hospital_patient_id', 'blood_oxygen', 'heart_rate', 'respiratory_rate', 'temperature', 'low_blood_pressure', 'high_blood_pressure'])
+            for row in reader:
+                self.patient_info_list.append(row)
+        return self.patient_info_list
+
+    def _dir_extract(self, data_dir=None):
         if data_dir is None:
             data_dir = self.data_dir
         patient_info_list = []

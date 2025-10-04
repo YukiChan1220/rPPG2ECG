@@ -5,3 +5,6 @@ overall_patient_info.csv
 /test_cleaned
 time_diff_warning.txt
 rppg2ecg.onnx
+/patient_pic
+/lab_mirror_data
+/lab_test_cleaned
