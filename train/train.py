@@ -94,12 +94,11 @@ def main():
     data_dir = "./test_cleaned"
     # data_dir = "./cleaned_data"
 
-    model = SimpleConvAE().to(device)
+    model = UNet().to(device)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     mseloss = torch.nn.MSELoss()
     def criterion(pred, target):
-        mse_loss_weight = 1
-        return mse_loss_weight * mseloss(pred, target)
+        return mseloss(pred, target)
     epochs = 50
     loaders = []
 

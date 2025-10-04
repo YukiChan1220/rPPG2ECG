@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import csv
 
-lab = False
+lab = True
 
 if lab:
     data_dir = "./lab_mirror_data"
