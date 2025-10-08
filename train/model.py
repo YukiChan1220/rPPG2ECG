@@ -24,28 +24,28 @@ class UNet(nn.Module):
     def __init__(self, channels=1):
         super().__init__()
         self.enc1 = nn.Sequential(
-            nn.Conv1d(1,16, kernel_size=15, stride=1, padding=7), nn.ReLU(), # L
+            nn.Conv1d(1,16, kernel_size=15, stride=1, padding=7), nn.LeakyReLU(0.1), # L
         )
         self.enc2 = nn.Sequential(
-            nn.Conv1d(16,32, kernel_size=16, stride=2, padding=7), nn.ReLU(),    # L / 2
+            nn.Conv1d(16,32, kernel_size=16, stride=2, padding=7), nn.LeakyReLU(0.1),    # L / 2
         )
         self.enc3 = nn.Sequential(
-            nn.Conv1d(32,64, kernel_size=16, stride=2, padding=7), nn.ReLU(),    # L / 4
+            nn.Conv1d(32,64, kernel_size=16, stride=2, padding=7), nn.LeakyReLU(0.1),    # L / 4
         )  
         self.bottleneck = nn.Sequential(
-            nn.Conv1d(64,128, kernel_size=31, stride=1, padding=15), nn.ReLU(),   # L / 4
+            nn.Conv1d(64,128, kernel_size=31, stride=1, padding=15), nn.LeakyReLU(0.1),   # L / 4
         )
         self.dec1 = nn.Sequential(
-            nn.ConvTranspose1d(192,64, kernel_size=16, stride=2, padding=7), nn.ReLU(),
+            nn.ConvTranspose1d(192,64, kernel_size=16, stride=2, padding=7), nn.LeakyReLU(0.1),
         )
         self.dec2 = nn.Sequential(
-            nn.ConvTranspose1d(96,32, kernel_size=16, stride=2, padding=7), nn.ReLU(),
+            nn.ConvTranspose1d(96,32, kernel_size=16, stride=2, padding=7), nn.LeakyReLU(0.1),
         )
         self.dec3 = nn.Sequential(
-            nn.Conv1d(48,16, kernel_size=15, stride=1, padding=7), nn.ReLU(),
+            nn.ConvTranspose1d(48,16, kernel_size=15, stride=1, padding=7), nn.LeakyReLU(0.1),
         )
         self.output_layer = nn.Sequential(
-            nn.Conv1d(16,1, kernel_size=15, stride=1, padding=7),
+            nn.ConvTranspose1d(16,1, kernel_size=15, stride=1, padding=7), nn.Tanh()
         )
     
     def forward(self,x):
@@ -53,6 +53,7 @@ class UNet(nn.Module):
         e2 = self.enc2(e1)
         e3 = self.enc3(e2)
         bn = self.bottleneck(e3)
+
 
 
         d1 = self.dec1(torch.cat([bn, e3], dim=1))

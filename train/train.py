@@ -4,6 +4,7 @@ import torch
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 
 def frequency_loss(pred, target, fs=512):
     pred_fft = torch.fft.rfft(pred, dim=-1)
@@ -89,19 +90,8 @@ def shape_loss(pred, target):
     maxminloss = torch.abs((pred_max / -pred_min) - (target_max / -target_min))
     return min_loss + max_loss + maxminloss
 
-def main():
-    device = torch.device("cpu")
-    data_dir = "./test_cleaned"
-    # data_dir = "./cleaned_data"
-
-    model = UNet().to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-    mseloss = torch.nn.MSELoss()
-    def criterion(pred, target):
-        return mseloss(pred, target)
-    epochs = 50
+def load_mirror_data(data_dir):
     loaders = []
-
     counter = 0
     datapoints = 0
     for file in os.listdir(data_dir):
@@ -115,15 +105,79 @@ def main():
                     X_rppg = [row[1] for row in data]
                     Y_ecg = [row[2] for row in data]
                     datapoints += len(X_rppg)
-                dataset = RPPG2ECGDataset([X_rppg], [Y_ecg], window_samples=1024)
+                dataset = RPPG2ECGDataset([X_rppg], [Y_ecg], window_samples=1024, auto_shift=True)
                 loaders.append(torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=True))
         except Exception as e:
             print(f"Error loading {file}: {e}")
             continue
     print(f"Total {datapoints} data points loaded from {counter} files.")
+    return loaders
+
+def eval_mirror_data(device, data_dir):
+    with open("{}/patient_000019_5.csv".format(data_dir), 'r') as f:
+        next(f)  # Skip header
+        data = [list(map(float, line.strip().split(','))) for line in f if line.strip()]
+        if len(data) % 4 != 0:
+            data = data[:-(len(data) % 4)]
+        X_rppg = [row[1] for row in data]
+        Y_ecg = [row[2] for row in data]
+        X_tensor = torch.from_numpy(np.array(X_rppg).astype('float32')).unsqueeze(0).unsqueeze(0).to(device)  # (1,1,L)
+        Y_tensor = torch.from_numpy(np.array(Y_ecg).astype('float32')).unsqueeze(0).unsqueeze(0).to(device)  # (1,1,L)
+        return X_tensor, Y_tensor
+
+def load_bidmc_data(data_dir):
+    loaders = []
+    counter = 0
+    datapoints = 0
+    for file in os.listdir(data_dir):
+        try:
+            # if file.endswith("Signals.csv") and not file.find("46") > 0:
+            if file.endswith("Signals.csv") and (file.find("45") > 0 or file.find("47") > 0):
+                print(f"Loading files {counter} / {len(os.listdir(data_dir))}")
+                counter += 1
+                df = pd.read_csv(os.path.join(data_dir, file))
+                X_rppg = df[' PLETH'].tolist()
+                Y_ecg = df[' II'].tolist()
+                datapoints += len(X_rppg)
+                dataset = RPPG2ECGDataset([X_rppg], [Y_ecg], window_samples=1024, fs = 128, auto_shift=False)
+                loaders.append(torch.utils.data.DataLoader(dataset, batch_size=16, shuffle=True))
+        except Exception as e:
+            print(f"Error loading {file}: {e}")
+            continue
+    print(f"Total {datapoints} data points loaded from {counter} files.")
+    return loaders
+
+def eval_bidmc_data(device, data_dir):
+    df = pd.read_csv(os.path.join(data_dir, "bidmc_46_Signals.csv"))
+    X_rppg = df[' PLETH'].tolist()
+    Y_ecg = df[' II'].tolist()
+    X_rppg = X_rppg[:4096]
+    Y_ecg = Y_ecg[:4096]
+    X_tensor = torch.from_numpy(np.array(X_rppg).astype('float32')).unsqueeze(0).unsqueeze(0).to(device)  # (1,1,L)
+    Y_tensor = torch.from_numpy(np.array(Y_ecg).astype('float32')).unsqueeze(0).unsqueeze(0).to(device)  # (1,1,L)
+    return X_tensor, Y_tensor
+
+def main():
+    device = torch.device("cpu")
+    data_dir = "./test_cleaned"
+    data_dir = "./cleaned_data"
+    data_dir = "D:/Datasets/bidmc-ppg-and-respiration-dataset-1.0.0/bidmc_csv"
+
+    model = UNet().to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=1e-4)
+    mseloss = torch.nn.MSELoss()
+    maeloss = torch.nn.L1Loss()
+    smoothl1loss = torch.nn.SmoothL1Loss()
+    def criterion(pred, target):
+        return mseloss(pred, target)
+    epochs = 30
+    
+    #loaders = load_mirror_data(data_dir)
+    loaders = load_bidmc_data(data_dir)
 
     for epoch in range(epochs):
         print(f"Epoch {epoch+1}/{epochs}")
+        running_loss = 0.0
         model.train()
         for train_loader in loaders:
             for xr, ye in train_loader:
@@ -131,19 +185,26 @@ def main():
                 pred = model(xr)
                 loss = criterion(pred, ye)
                 opt.zero_grad(); loss.backward(); opt.step()
-
+                running_loss += loss.item()
+        print(f"  Training Loss: {running_loss/len(train_loader):.6f}")
+    
+    # 保存模型
     model.eval()
-    torch.onnx.export(model, torch.randn(1,1,1024).to(device), "rppg2ecg.onnx", input_names=['input'], output_names=['output'], dynamic_axes={'input': {2: 'length'}, 'output': {2: 'length'}})
+    print("\nSaving models...")
+    
+    # 保存 PyTorch 模型
+    torch.save(model.state_dict(), "rppg2ecg.pth")
+    print("PyTorch model saved to: rppg2ecg.pth")
+    
+    # 保存 ONNX 模型
+    torch.onnx.export(model, torch.randn(1,1,1024).to(device), "rppg2ecg.onnx", 
+                     input_names=['input'], output_names=['output'], 
+                     dynamic_axes={'input': {2: 'length'}, 'output': {2: 'length'}})
+    print("ONNX model saved to: rppg2ecg.onnx")
 
+    #X_tensor, Y_tensor = eval_mirror_data(device, data_dir)
+    X_tensor, Y_tensor = eval_bidmc_data(device, data_dir)
 
-    with open("{}/patient_000019_5.csv".format(data_dir), 'r') as f:
-        next(f)  # Skip header
-        data = [list(map(float, line.strip().split(','))) for line in f if line.strip()]
-        X_rppg = [row[1] for row in data]
-        Y_ecg = [row[2] for row in data]
-        X_tensor = torch.from_numpy(np.array(X_rppg).astype('float32')).unsqueeze(0).unsqueeze(0).to(device)  # (1,1,L)
-        Y_tensor = torch.from_numpy(np.array(Y_ecg).astype('float32')).unsqueeze(0).unsqueeze(0).to(device)  # (1,1,L)
-        
     with torch.no_grad():
         pred = model(X_tensor)
 

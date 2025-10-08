@@ -31,7 +31,7 @@ class PatientStatistics:
         self.patient_list = self.load_all_patients()
 
     def load_all_patients(self, data_dir="./patient_data", output_file="overall_patient_info.csv"):
-        patient_info = PatientInfo(data_dir, save_dir=output_file)
+        patient_info = PatientInfo(data_dir, save_dir=output_file, mode="dir")
         patient_info_list = patient_info.extract()
         return patient_info_list
     
@@ -106,7 +106,7 @@ def main():
     stats.count_raw_data_points()
     stats.count_cleaned_data_points()
     stats.overall_stat()
-    start_idx = 277
+    start_idx = 300
     stats.count_raw_data_points(start_idx=start_idx)
     stats.count_cleaned_data_points(start_idx=start_idx)
 
