@@ -8,3 +8,5 @@ rppg2ecg.onnx
 /patient_pic
 /lab_mirror_data
 /lab_test_cleaned
+/lab_ppg_mirror_data
+/lab_ppg_washed

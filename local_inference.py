@@ -3,7 +3,9 @@ from queue import Queue
 from model.step import Step
 import preprocess.video2frame as v2f
 from log.result_log import ResultLogger
+from log.oldmerge import OldFileMerger
 from log.merge import FileMerger
+
 from log.normalize import Normalizer
 import threading
 import time
@@ -11,6 +13,8 @@ import time
 import os
 import sys
 import signal
+
+mirror_version = global_vars.mirror_version
 
 def signal_handler(sig, frame):
     global_vars.user_interrupt = True
@@ -36,8 +40,11 @@ def inference(model_choice="Step", path=None):
     
     video2frame.path = path
     result_logger = ResultLogger(path + "/rppg_log.csv")
-    file_merger = FileMerger([path + "/rppg_log.csv", path + "/ecg_log.csv"], path + "/merged_log.csv")
-    normalizer = Normalizer(path + "/merged_log.csv", path + "/normalized_log.csv")
+    if mirror_version == "1":
+        file_merger = OldFileMerger([path + "/rppg_log.csv", path + "/ecg_log.csv"], path + "/merged_log.csv")
+    elif mirror_version == "2":
+        file_merger = FileMerger([(["rppg"], path + "/rppg_log.csv"), (["ppg_red","ppg_ir","ppg_green","ecg"], path + "/merged_log.csv")], path + "/merged_output.csv")
+    normalizer = Normalizer(path + "/merged_output.csv", path + "/normalized_log.csv")
 
     threads = []
 
@@ -79,20 +86,17 @@ def inference(model_choice="Step", path=None):
         print("Inference was interrupted")
 
 def inference_handler(path, dir):
-    try:
-        with open(os.path.join(path, dir, "video.avi.ts"), 'r') as f:
-            f.readline()
-            video_begin_time = float(f.readline().strip().split(',')[1])
-        with open(os.path.join(path, dir, "ecg_log.csv"), 'r') as f:
-            f.readline()
-            ecg_begin_time = float(f.readline().strip().split(',')[0])
-        if abs(video_begin_time - ecg_begin_time) > 3.0:
-            print(f"Warning: Time difference between video and ECG for {dir} is greater than 3 seconds.")
-            with open("time_diff_warning.txt", 'a') as f:
-                f.write(f"path: {os.path.join(path, dir)}, time difference: {abs(video_begin_time - ecg_begin_time)} seconds\n")
-        inference(path=os.path.join(path, dir))
-    except Exception as e:
-        print(f"Error processing {dir}: {e}")
+    with open(os.path.join(path, dir, "video.avi.ts"), 'r') as f:
+        f.readline()
+        video_begin_time = float(f.readline().strip().split(',')[1])
+    with open(os.path.join(path, dir, "ecg_log.csv"), 'r') as f:
+        f.readline()
+        ecg_begin_time = float(f.readline().strip().split(',')[0])
+    if abs(video_begin_time - ecg_begin_time) > 3.0:
+        print(f"Warning: Time difference between video and ECG for {dir} is greater than 3 seconds.")
+        with open("time_diff_warning.txt", 'a') as f:
+            f.write(f"path: {os.path.join(path, dir)}, time difference: {abs(video_begin_time - ecg_begin_time)} seconds\n")
+    inference(path=os.path.join(path, dir))
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
@@ -101,8 +105,9 @@ def main():
     if starting_point.isdigit() and int(starting_point) > 0:
         for dir in os.listdir(path):
             if os.path.isdir(os.path.join(path, dir)):
+                if not os.path.exists(os.path.join(path, dir, "rppg_log.csv")):
+                    open(os.path.join(path, dir, "rppg_log.csv"), 'w').write("timestamp,rppg\n")
                 if int(dir[8:]) < int(starting_point):
-                    print(f"Skipping {dir} as it is before starting point {starting_point}")
                     continue
                 inference_handler(path, dir)
                 if global_vars.user_interrupt:
@@ -111,6 +116,8 @@ def main():
     elif starting_point == "-1":
         for dir in os.listdir(path):
             if os.path.isdir(os.path.join(path, dir)):
+                if not os.path.exists(os.path.join(path, dir, "rppg_log.csv")):
+                    open(os.path.join(path, dir, "rppg_log.csv"), 'w').write("timestamp,rppg\n")
                 with open (os.path.join(path, dir, "rppg_log.csv"), 'r') as f:
                     lines = f.readlines()
                     if len(lines) > 1:

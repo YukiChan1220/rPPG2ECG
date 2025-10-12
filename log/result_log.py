@@ -9,6 +9,7 @@ class ResultLogger(LogBase):
     def log(self, results_queue: Queue):
         logged_lines = 0
         with open(self.log_file, 'w') as f:
+            f.write('timestamp,rppg\n')
             while not results_queue.empty():
                 result, timestamp = results_queue.get()
                 f.write(f'{timestamp},{result[0]}\n')
