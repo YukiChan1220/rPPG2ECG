@@ -106,7 +106,7 @@ def main():
     stats.count_raw_data_points()
     stats.count_cleaned_data_points()
     stats.overall_stat()
-    start_idx = 316
+    start_idx = 321
     stats.count_raw_data_points(start_idx=start_idx)
     stats.count_cleaned_data_points(start_idx=start_idx)
 

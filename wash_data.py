@@ -54,7 +54,7 @@ class MirrorV1Loader(DataLoader):
 class MirrorV2Loader(DataLoader):
     def load(self, data_path):
         try:
-            df = pd.read_csv(os.path.join(data_path, 'merged_output.csv'), dtype=float)
+            df = pd.read_csv(os.path.join(data_path, 'normalized_log.csv'), dtype=float)
             return SignalData(
                 time=df['timestamp'].tolist(),
                 rppg=df['rppg'].tolist(),
@@ -243,32 +243,43 @@ class RawDataPlotter(PlotterBase):
         for i, name in enumerate(signal_names):
             self.axes[name] = axes_list[i]
         
-        plt.subplots_adjust(bottom=0.15)
+        plt.subplots_adjust(bottom=0.12)
         
-        ax_accept = plt.axes([0.7, 0.05, 0.1, 0.05])
-        ax_reject = plt.axes([0.81, 0.05, 0.1, 0.05])
+        ax_accept = plt.axes([0.81, 0.02, 0.08, 0.03])
+        ax_reject = plt.axes([0.90, 0.02, 0.08, 0.03])
         self.buttons['accept'] = plt.Button(ax_accept, 'Accept')
         self.buttons['reject'] = plt.Button(ax_reject, 'Reject')
         self.buttons['accept'].on_clicked(lambda e: self._button_handler(e, 'raw_accept'))
         self.buttons['reject'].on_clicked(lambda e: self._button_handler(e, 'raw_reject'))
         
-        slider_configs = [
-            ('ecg_std', 'ECG STD', 0.1, 0.5, 3.0, 1.5),
-            ('rppg_std', 'RPPG STD', 0.3, 0.5, 3.0, 1.5),
-            ('rppg_bpm', 'RPPG BPM', 0.5, 5, 30, 15)
-        ]
-        
         if mirror_version == '2':
-            slider_configs.extend([
-                ('ppg_red_std', 'PPG Red STD', 0.1, 0.5, 3.0, 1.5),
-                ('ppg_ir_std', 'PPG IR STD', 0.3, 0.5, 3.0, 1.5),
-                ('ppg_green_std', 'PPG Green STD', 0.5, 0.5, 3.0, 1.5)
-            ])
+            slider_configs = [
+                ('ecg_std', 'ECG STD', 0.02, 0.02, 0.12, 0.03),
+                ('rppg_std', 'RPPG STD', 0.15, 0.02, 0.12, 0.03),
+                ('rppg_bpm', 'RPPG BPM', 0.28, 0.02, 0.12, 0.03),
+                ('ppg_red_std', 'PPG Red', 0.41, 0.02, 0.12, 0.03),
+                ('ppg_ir_std', 'PPG IR', 0.54, 0.02, 0.12, 0.03),
+                ('ppg_green_std', 'PPG Green', 0.67, 0.02, 0.12, 0.03)
+            ]
+        else:
+            slider_configs = [
+                ('ecg_std', 'ECG STD', 0.05, 0.02, 0.15, 0.03),
+                ('rppg_std', 'RPPG STD', 0.25, 0.02, 0.15, 0.03),
+                ('rppg_bpm', 'RPPG BPM', 0.45, 0.02, 0.15, 0.03)
+            ]
         
-        for name, label, pos, vmin, vmax, vinit in slider_configs:
-            ax = plt.axes([pos, 0.05, 0.1, 0.05])
-            step = 0.1 if 'std' in name else 1
-            self.sliders[name] = plt.Slider(ax, f'{label} Threshold', vmin, vmax, 
+        for name, label, left, bottom, width, height in slider_configs:
+            label_ax = plt.axes([left, bottom + height + 0.005, width, 0.02])
+            label_ax.axis('off')
+            label_ax.text(0.5, 0.5, label, ha='center', va='center', 
+                         fontsize=9, fontweight='bold', transform=label_ax.transAxes)
+            
+            ax = plt.axes([left, bottom, width, height])
+            if 'std' in name:
+                vmin, vmax, vinit, step = 0.5, 3.0, 1.5, 0.1
+            else:
+                vmin, vmax, vinit, step = 5, 30, 15, 1
+            self.sliders[name] = plt.Slider(ax, '', vmin, vmax, 
                                            valinit=vinit, valstep=step)
             self.sliders[name].on_changed(lambda val, n=name: self._slider_handler(val, n))
         
@@ -330,18 +341,17 @@ class CleanedDataPlotter(PlotterBase):
         for i, name in enumerate(signal_names):
             self.axes[name] = axes_list[i]
         
-        plt.subplots_adjust(bottom=0.15)
+        plt.subplots_adjust(bottom=0.12)
         
-        ax_accept = plt.axes([0.7, 0.05, 0.1, 0.05])
-        ax_reject = plt.axes([0.81, 0.05, 0.1, 0.05])
-        ax_reverse = plt.axes([0.59, 0.05, 0.1, 0.05])
+        ax_reverse = plt.axes([0.65, 0.02, 0.1, 0.03])
+        ax_accept = plt.axes([0.76, 0.02, 0.1, 0.03])
+        ax_reject = plt.axes([0.87, 0.02, 0.1, 0.03])
+        self.buttons['reverse'] = plt.Button(ax_reverse, 'Reverse')
         self.buttons['accept'] = plt.Button(ax_accept, 'Accept')
         self.buttons['reject'] = plt.Button(ax_reject, 'Reject')
-        self.buttons['reverse'] = plt.Button(ax_reverse, 'Reverse')
+        self.buttons['reverse'].on_clicked(lambda e: self._button_handler(e, 'cleaned_reverse'))
         self.buttons['accept'].on_clicked(lambda e: self._button_handler(e, 'cleaned_accept'))
         self.buttons['reject'].on_clicked(lambda e: self._button_handler(e, 'cleaned_reject'))
-        self.buttons['reverse'].on_clicked(lambda e: self._button_handler(e, 'cleaned_reverse'))
-
     def _button_handler(self, event, event_name):
         self.event.set()
         self.event_queue.put(event_name)

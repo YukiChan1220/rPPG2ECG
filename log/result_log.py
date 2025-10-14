@@ -1,6 +1,7 @@
 from .base import LogBase
 from queue import Queue
 import os
+import global_vars
 
 class ResultLogger(LogBase):
     def __init__(self, log_file='results.csv'):
@@ -9,7 +10,8 @@ class ResultLogger(LogBase):
     def log(self, results_queue: Queue):
         logged_lines = 0
         with open(self.log_file, 'w') as f:
-            f.write('timestamp,rppg\n')
+            if global_vars.mirror_version != "1":
+                f.write('timestamp,rppg\n')
             while not results_queue.empty():
                 result, timestamp = results_queue.get()
                 f.write(f'{timestamp},{result[0]}\n')

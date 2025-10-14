@@ -42,9 +42,10 @@ def inference(model_choice="Step", path=None):
     result_logger = ResultLogger(path + "/rppg_log.csv")
     if mirror_version == "1":
         file_merger = OldFileMerger([path + "/rppg_log.csv", path + "/ecg_log.csv"], path + "/merged_log.csv")
+        normalizer = Normalizer(path + "/merged_log.csv", path + "/normalized_log.csv")
     elif mirror_version == "2":
         file_merger = FileMerger([(["rppg"], path + "/rppg_log.csv"), (["ppg_red","ppg_ir","ppg_green","ecg"], path + "/merged_log.csv")], path + "/merged_output.csv")
-    normalizer = Normalizer(path + "/merged_output.csv", path + "/normalized_log.csv")
+        normalizer = Normalizer(path + "/merged_output.csv", path + "/normalized_log.csv")
 
     threads = []
 
@@ -106,7 +107,7 @@ def main():
         for dir in os.listdir(path):
             if os.path.isdir(os.path.join(path, dir)):
                 if not os.path.exists(os.path.join(path, dir, "rppg_log.csv")):
-                    open(os.path.join(path, dir, "rppg_log.csv"), 'w').write("timestamp,rppg\n")
+                    open(os.path.join(path, dir, "rppg_log.csv"), 'w')
                 if int(dir[8:]) < int(starting_point):
                     continue
                 inference_handler(path, dir)
@@ -117,7 +118,7 @@ def main():
         for dir in os.listdir(path):
             if os.path.isdir(os.path.join(path, dir)):
                 if not os.path.exists(os.path.join(path, dir, "rppg_log.csv")):
-                    open(os.path.join(path, dir, "rppg_log.csv"), 'w').write("timestamp,rppg\n")
+                    open(os.path.join(path, dir, "rppg_log.csv"), 'w')
                 with open (os.path.join(path, dir, "rppg_log.csv"), 'r') as f:
                     lines = f.readlines()
                     if len(lines) > 1:
