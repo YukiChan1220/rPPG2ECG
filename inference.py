@@ -83,34 +83,51 @@ def _apply_bandpass_filter(signal_type, sig, fs):
         
         return filtered
 
-def load_ppg_from_csv(csv_path, segment_length=512, normalize=True):
-    """Load PPG signal from BIDMC CSV file."""
+def _apply_zscore_normalization(sig):
+        """Apply z-score normalization to the full signal."""
+        mean = np.mean(sig)
+        std = np.std(sig)
+        if std > 1e-6:
+            normalized = (sig - mean) / std
+        else:
+            normalized = sig - mean
+        return normalized
+
+def load_ppg_and_ecg_from_csv(csv_path, segment_length=512, normalize=True):
+    """Load PPG and ECG signal from BIDMC CSV file."""
     df = pd.read_csv(csv_path)
     if ' PLETH' not in df.columns:
         raise ValueError(f"PLETH column not found in {csv_path}")
+    if ' II' not in df.columns:
+        raise ValueError(f"II column not found in {csv_path}")
     
     ppg = df[' PLETH'].values
+    ecg = df[' II'].values
     time_values = df['Time [s]'].values
-    ppg = ppg[~np.isnan(ppg)]
-    time_values = time_values[~np.isnan(ppg)]
+    ppg = ppg[~np.isnan(ppg) & ~np.isnan(ecg)]
+    ecg = ecg[~np.isnan(ppg) & ~np.isnan(ecg)]
+    time_values = time_values[~np.isnan(ppg) & ~np.isnan(ecg)]
     # Resample to 128 Hz
     ppg = _resample_signal(ppg, time_values, target_fs=128)
     ppg = _apply_bandpass_filter('ppg', ppg, fs=128)
+    ecg = _resample_signal(ecg, time_values, target_fs=128)
     
     # Segment into windows
-    segments = []
+    ppg_segments = []
+    ecg_segments = []
     start_idx = 0
     while start_idx + segment_length <= len(ppg):
-        segment = ppg[start_idx:start_idx + segment_length]
+        ppg_segment = ppg[start_idx:start_idx + segment_length]
+        ecg_segment = ecg[start_idx:start_idx + segment_length]
         if normalize:
-            mean, std = segment.mean(), segment.std()
+            mean, std = ppg_segment.mean(), ppg_segment.std()
             if std > 1e-6:
-                segment = (segment - mean) / std
-        segments.append(segment)
+                ppg_segment = (ppg_segment - mean) / std
+        ppg_segments.append(ppg_segment)
+        ecg_segments.append(ecg_segment)
         start_idx += segment_length
     
-    return np.array(segments, dtype=np.float32)
-
+    return np.array(ppg_segments, dtype=np.float32), np.array(ecg_segments, dtype=np.float32)
 
 def generate_ecg_from_ppg(G, ppg_segments, device='cpu', batch_size=32):
     """Generate ECG from PPG segments using trained generator."""
@@ -129,11 +146,13 @@ def generate_ecg_from_ppg(G, ppg_segments, device='cpu', batch_size=32):
     return generated_ecgs.squeeze(1)  # (N, L)
 
 
-def save_results(output_path, ppg_segments, generated_ecgs, sample_rate=125):
+def save_results(output_path, ppg_segments, generated_ecgs, raw_ecgs, sample_rate=125):
     """Save PPG and generated ECG to CSV file."""
     # Concatenate all segments (simple concatenation, may have discontinuities)
     ppg_signal = ppg_segments.flatten()
     ecg_signal = generated_ecgs.flatten()
+    raw_ecg_signal = raw_ecgs.flatten()
+    raw_ecg_signal = _apply_zscore_normalization(raw_ecg_signal)
     
     # Create time axis
     time = np.arange(len(ppg_signal)) / sample_rate
@@ -142,7 +161,8 @@ def save_results(output_path, ppg_segments, generated_ecgs, sample_rate=125):
     df = pd.DataFrame({
         'Time [s]': time,
         'PPG_Input': ppg_signal,
-        'ECG_Generated': ecg_signal
+        'ECG_Generated': ecg_signal,
+        'ECG_Raw': raw_ecg_signal
     })
     df.to_csv(output_path, index=False)
     print(f"Results saved to {output_path}")
@@ -175,8 +195,8 @@ def main():
     print("Model loaded successfully!")
     
     # Load PPG signal
-    print(f"Loading PPG from {args.input_csv}...")
-    ppg_segments = load_ppg_from_csv(args.input_csv, 
+    print(f"Loading PPG and ECG from {args.input_csv}...")
+    ppg_segments, ecg_segments = load_ppg_and_ecg_from_csv(args.input_csv, 
                                      segment_length=args.segment_length, 
                                      normalize=True)
     print(f"Loaded {len(ppg_segments)} PPG segments")
@@ -188,7 +208,7 @@ def main():
     print(f"Generated {len(generated_ecgs)} ECG segments")
     
     # Save results
-    save_results(args.output_csv, ppg_segments, generated_ecgs)
+    save_results(args.output_csv, ppg_segments, generated_ecgs, ecg_segments, sample_rate=128)
     print("Done!")
 
 
