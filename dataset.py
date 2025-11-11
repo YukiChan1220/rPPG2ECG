@@ -139,6 +139,7 @@ class BIDMCDataset(Dataset):
         
         # Find all BIDMC signal files
         csv_files = sorted(glob.glob(str(self.data_path / "bidmc_*_Signals.csv")))
+        csv_files = [f for f in csv_files if not f.endswith("bidmc_04_Signals.csv")]
         
         if len(csv_files) == 0:
             raise FileNotFoundError(f"No BIDMC CSV files found in {self.data_path}")

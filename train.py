@@ -138,13 +138,13 @@ def train(args):
             # adversarial loss: push generators to fool discriminators (real label)
             D_time_E_pred = D_time_E(fake_ecg)
             D_spec_E_pred = D_spec_E(magnitude_spectrogram(fake_ecg, n_fft=args.n_fft, hop_length=args.hop_length, win_length=args.win_length))
-            loss_G_adv_E = mse_loss(D_time_E_pred, torch.full_like(D_time_E_pred, real_label, device=device)) + \
-                           mse_loss(D_spec_E_pred, torch.full_like(D_spec_E_pred, real_label, device=device))
+            loss_G_adv_E_time = mse_loss(D_time_E_pred, torch.full_like(D_time_E_pred, real_label, device=device))
+            loss_G_adv_E_freq = mse_loss(D_spec_E_pred, torch.full_like(D_spec_E_pred, real_label, device=device))
 
             D_time_P_pred = D_time_P(fake_ppg)
             D_spec_P_pred = D_spec_P(magnitude_spectrogram(fake_ppg, n_fft=args.n_fft, hop_length=args.hop_length, win_length=args.win_length))
-            loss_G_adv_P = mse_loss(D_time_P_pred, torch.full_like(D_time_P_pred, real_label, device=device)) + \
-                           mse_loss(D_spec_P_pred, torch.full_like(D_spec_P_pred, real_label, device=device))
+            loss_G_adv_P_time = mse_loss(D_time_P_pred, torch.full_like(D_time_P_pred, real_label, device=device))
+            loss_G_adv_P_freq = mse_loss(D_spec_P_pred, torch.full_like(D_spec_P_pred, real_label, device=device))
 
             # cycle consistency: x -> G(x) -> F(G(x)) ≈ x
             rec_ppg = F(fake_ecg)
@@ -152,14 +152,16 @@ def train(args):
             loss_cycle = l1_loss(rec_ppg, ppg) + l1_loss(rec_ecg, ecg)
 
             # total generator loss: weighted sum
-            loss_G = args.lambda_adv * (loss_G_adv_E + loss_G_adv_P) + args.lambda_cycle * loss_cycle
+            loss_G = args.lambda_time_adv * (loss_G_adv_E_time + loss_G_adv_P_time) + args.lambda_freq_adv * (loss_G_adv_E_freq + loss_G_adv_P_freq) + args.lambda_cycle * loss_cycle
             loss_G.backward()
             optG.step()
 
             if total_steps % args.print_every == 0:
                 print(f"Epoch[{epoch+1}/{args.epochs}] Step[{i+1}/{iters_per_epoch}] "
                       f"Loss_D: {loss_D.item():.4f} Loss_G: {loss_G.item():.4f} "
-                      f"adv_E: {loss_G_adv_E.item():.4f} adv_P: {loss_G_adv_P.item():.4f} cyc: {loss_cycle.item():.4f}")
+                      f"adv_E_time: {loss_G_adv_E_time.item():.4f} adv_E_freq: {loss_G_adv_E_freq.item():.4f} "
+                      f"adv_P_time: {loss_G_adv_P_time.item():.4f} adv_P_freq: {loss_G_adv_P_freq.item():.4f} "
+                      f"cycle: {loss_cycle.item():.4f}")
 
         # schedulers step (linear lr decay)
         schedulerG.step()
@@ -214,8 +216,9 @@ def parse_args():
     parser.add_argument('--win_length', type=int, default=256, help='win_length for STFT')
     
     # Loss weights
-    parser.add_argument('--lambda_adv', type=float, default=1.0, help='adversarial loss weight')
-    parser.add_argument('--lambda_cycle', type=float, default=10.0, help='cycle consistency weight')
+    parser.add_argument('--lambda_time_adv', type=float, default=3.0, help='adversarial loss weight for D_t')
+    parser.add_argument('--lambda_freq_adv', type=float, default=1.0, help='adversarial loss weight for D_f')
+    parser.add_argument('--lambda_cycle', type=float, default=30.0, help='cycle consistency weight')
     
     # Logging and saving
     parser.add_argument('--print_every', type=int, default=50, help='print every N steps')

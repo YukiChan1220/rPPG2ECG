@@ -7,6 +7,8 @@ import torch
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from scipy import signal
+from scipy.interpolate import interp1d
 
 from model import build_generators
 
@@ -21,6 +23,65 @@ def load_checkpoint(checkpoint_path, device='cpu'):
     F.eval()
     return G, F
 
+def _resample_signal(sig, time_values, target_fs):
+        """Resample signal to target frequency using interpolation."""
+        # Remove duplicate time values (keep first occurrence)
+        unique_indices = np.concatenate([[True], np.diff(time_values) > 0])
+        time_values_unique = time_values[unique_indices]
+        sig_unique = sig[unique_indices]
+        
+        # Check if we have enough unique points
+        if len(time_values_unique) < 4:  # Need at least 4 points for cubic interpolation
+            raise ValueError(f"Too few unique time points ({len(time_values_unique)}) for interpolation")
+        
+        # Calculate original sampling frequency
+        time_diff = np.diff(time_values_unique)
+        orig_fs = 1.0 / np.median(time_diff)
+        
+        if abs(orig_fs - target_fs) < 0.1:  # Already at target frequency
+            return sig_unique
+        
+        # Create interpolation function
+        f = interp1d(time_values_unique, sig_unique, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        
+        # Create new time axis at target frequency
+        duration = time_values_unique[-1] - time_values_unique[0]
+        n_samples = int(duration * target_fs)
+        new_time = np.linspace(time_values_unique[0], time_values_unique[-1], n_samples)
+        
+        # Resample
+        resampled = f(new_time)
+        return resampled
+
+def _apply_bandpass_filter(signal_type, sig, fs):
+        """Apply appropriate bandpass filter based on signal type."""
+        if signal_type == 'ecg':
+            # FIR bandpass filter for ECG: 3-45 Hz
+            numtaps = 101  # Filter order
+            lowcut = 3.0
+            highcut = 45.0
+            nyq = 0.5 * fs
+            low = lowcut / nyq
+            high = highcut / nyq
+            
+            # Design FIR filter
+            fir_coeff = signal.firwin(numtaps, [low, high], pass_zero=False)
+            filtered = signal.filtfilt(fir_coeff, 1.0, sig)
+            
+        elif signal_type == 'ppg':
+            # Butterworth bandpass filter for PPG: 1-8 Hz
+            lowcut = 1.0
+            highcut = 8.0
+            order = 4
+            nyq = 0.5 * fs
+            low = lowcut / nyq
+            high = highcut / nyq
+            
+            # Design Butterworth filter
+            b, a = signal.butter(order, [low, high], btype='band')
+            filtered = signal.filtfilt(b, a, sig)
+        
+        return filtered
 
 def load_ppg_from_csv(csv_path, segment_length=512, normalize=True):
     """Load PPG signal from BIDMC CSV file."""
@@ -29,7 +90,12 @@ def load_ppg_from_csv(csv_path, segment_length=512, normalize=True):
         raise ValueError(f"PLETH column not found in {csv_path}")
     
     ppg = df[' PLETH'].values
+    time_values = df['Time [s]'].values
     ppg = ppg[~np.isnan(ppg)]
+    time_values = time_values[~np.isnan(ppg)]
+    # Resample to 128 Hz
+    ppg = _resample_signal(ppg, time_values, target_fs=128)
+    ppg = _apply_bandpass_filter('ppg', ppg, fs=128)
     
     # Segment into windows
     segments = []
