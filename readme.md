@@ -50,8 +50,9 @@ python train.py --data_path /path/to/bidmc/csv/files --batch_size 32 --epochs 20
 Available training arguments:
 - `--data_path`: Path to directory containing BIDMC CSV files (required)
 - `--dataset_type`: Dataset type, currently supports 'bidmc' (default: bidmc)
-- `--segment_length`: Length of each signal segment (default: 512)
+- `--segment_length`: Length of each signal segment in samples at target_fs (default: 512)
 - `--stride`: Stride for sliding window segmentation (default: 256, 50% overlap)
+- `--target_fs`: Target sampling frequency in Hz (default: 128)
 - `--batch_size`: Batch size (default: 32)
 - `--epochs`: Number of training epochs (default: 200)
 - `--lr`: Initial learning rate (default: 2e-4)
@@ -135,6 +136,8 @@ This will:
   - Adam optimizer with β1=0.5, β2=0.999
 
 - **Data Preprocessing**:
+  - Resampling to 128Hz
+  - Bandpass filtering (FIR 3-45Hz for ECG, Butterworth 1-8Hz for PPG)
+  - Z-score normalization on full signal
   - Sliding window segmentation with configurable stride
-  - Z-score normalization per segment
-  - No assumptions about sampling rate (works with raw data)
+  - Min-max [-1, 1] normalization per segment
