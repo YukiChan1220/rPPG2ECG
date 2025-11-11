@@ -126,7 +126,7 @@ def train(args):
             loss_D_spec_P = mse_loss(D_spec_P_real, torch.full_like(D_spec_P_real, real_label, device=device)) + \
                             mse_loss(D_spec_P_fake, torch.full_like(D_spec_P_fake, fake_label, device=device))
 
-            loss_D = (loss_D_time_E + loss_D_spec_E + loss_D_time_P + loss_D_spec_P) * 0.5
+            loss_D = args.lambda_time_adv * (loss_D_time_E + loss_D_time_P) + args.lambda_freq_adv * (loss_D_spec_E + loss_D_spec_P)
             loss_D.backward()
             optD.step()
 
