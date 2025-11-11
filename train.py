@@ -32,7 +32,7 @@ l1_loss = nn.L1Loss()
 # -------------------------
 def train(args):
     device = torch.device('cuda' if torch.cuda.is_available() and not args.no_cuda else 'cpu')
-
+    print(f"Using device: {device}")
     # Build models
     G, F = build_generators(device=device)
     D_time_E, D_spec_E, D_time_P, D_spec_P = build_discriminators(device=device)
@@ -201,10 +201,10 @@ def parse_args():
     
     # Training arguments
     parser.add_argument('--out_dir', type=str, default='checkpoints', help='output directory')
-    parser.add_argument('--epochs', type=int, default=200, help='number of epochs')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-    parser.add_argument('--lr', type=float, default=2e-4, help='initial learning rate')
-    parser.add_argument('--decay_start_epoch', type=int, default=100, help='epoch to start linear lr decay')
+    parser.add_argument('--epochs', type=int, default=15, help='number of epochs')
+    parser.add_argument('--batch_size', type=int, default=128, help='batch size')
+    parser.add_argument('--lr', type=float, default=1e-4, help='initial learning rate')
+    parser.add_argument('--decay_start_epoch', type=int, default=10, help='epoch to start linear lr decay')
     
     # Spectrogram arguments
     parser.add_argument('--n_fft', type=int, default=256, help='n_fft for STFT')

@@ -25,10 +25,10 @@ def load_checkpoint(checkpoint_path, device='cpu'):
 def load_ppg_from_csv(csv_path, segment_length=512, normalize=True):
     """Load PPG signal from BIDMC CSV file."""
     df = pd.read_csv(csv_path)
-    if 'PLETH' not in df.columns:
+    if ' PLETH' not in df.columns:
         raise ValueError(f"PLETH column not found in {csv_path}")
     
-    ppg = df['PLETH'].values
+    ppg = df[' PLETH'].values
     ppg = ppg[~np.isnan(ppg)]
     
     # Segment into windows
