@@ -93,18 +93,21 @@ class LayerNorm1dWrapper(nn.Module):
 # Attention U-Net style 1D Generator
 # -------------------------
 class AttentionUNet1D(nn.Module):
-    def __init__(self, in_channels=1, out_channels=1, base_filters=64, depth=4, kernel_size=16):
+    def __init__(self, in_channels=1, out_channels=1, base_filters=64, depth=6, kernel_size=16):
         super().__init__()
         ks = kernel_size  # Fixed kernel size = 16
         pad = ks // 2
         self.depth = depth
 
         # Encoder with fixed kernel size=16, stride=2
-        # Filter progression: 64 -> 128 -> 256 -> 512
+        # Filter progression: 64 -> 128 -> 256 -> 512 -> 512 -> 512
         encs = []
         ins = in_channels
-        outs = base_filters
+        # Define filter progression: [64, 128, 256, 512, 512, 512]
+        filter_progression = [64, 128, 256, 512, 512, 512]
+        
         for d in range(depth):
+            outs = filter_progression[d]
             # First encoder layer doesn't use normalization (as in paper)
             use_norm = False if d == 0 else True
             encs.append(nn.Sequential(
@@ -113,7 +116,6 @@ class AttentionUNet1D(nn.Module):
                 nn.LeakyReLU(0.2, inplace=True)
             ))
             ins = outs
-            outs = min(outs * 2, 512)
         self.encs = nn.ModuleList(encs)
 
         # Bottleneck with kernel_size=16
@@ -124,28 +126,26 @@ class AttentionUNet1D(nn.Module):
         )
 
         # Decoder with kernel_size=16, stride=2
-        # After bottleneck, we have ins*2 channels
-        # We need to carefully track channel counts through decoder
+        # After bottleneck, we have ins*2 channels (1024 since ins=512)
+        # Decoder mirrors encoder: skip connections from [512, 512, 512, 256, 128, 64]
         decs = []
         att_gates = []
         
         # Track decoder input/output channels
         # First decoder layer takes bottleneck output (ins*2) + skip connection
-        dec_in = ins * 2  # bottleneck output channels
+        dec_in = ins * 2  # bottleneck output channels (1024)
+        
+        # Decoder filter progression (mirror of encoder): [512, 512, 256, 128, 64, 64]
+        decoder_progression = [512, 512, 256, 128, 64, 64]
         
         for d in range(depth):
             # Corresponding skip from encoder (in reverse order)
-            skip_idx = depth - 1 - d
-            if skip_idx == 0:
-                skip_ch = base_filters
-            else:
-                skip_ch = base_filters * (2 ** skip_idx)
+            # Encoder: [64, 128, 256, 512, 512, 512]
+            # Skips:   [512, 512, 512, 256, 128, 64] (reversed)
+            skip_ch = filter_progression[depth - 1 - d]
             
-            # Decoder output channels (progressively reduce)
-            if d == depth - 1:
-                dec_out = base_filters
-            else:
-                dec_out = skip_ch // 2
+            # Decoder output channels
+            dec_out = decoder_progression[d]
             
             # Input to decoder layer = current features + gated skip
             dec_layer_in = dec_in + skip_ch
