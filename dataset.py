@@ -65,20 +65,29 @@ class BIDMCDataset(Dataset):
     
     def _resample_signal(self, sig, time_values, target_fs):
         """Resample signal to target frequency using interpolation."""
+        # Remove duplicate time values (keep first occurrence)
+        unique_indices = np.concatenate([[True], np.diff(time_values) > 0])
+        time_values_unique = time_values[unique_indices]
+        sig_unique = sig[unique_indices]
+        
+        # Check if we have enough unique points
+        if len(time_values_unique) < 4:  # Need at least 4 points for cubic interpolation
+            raise ValueError(f"Too few unique time points ({len(time_values_unique)}) for interpolation")
+        
         # Calculate original sampling frequency
-        time_diff = np.diff(time_values)
+        time_diff = np.diff(time_values_unique)
         orig_fs = 1.0 / np.median(time_diff)
         
         if abs(orig_fs - target_fs) < 0.1:  # Already at target frequency
-            return sig
+            return sig_unique
         
         # Create interpolation function
-        f = interp1d(time_values, sig, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        f = interp1d(time_values_unique, sig_unique, kind='cubic', bounds_error=False, fill_value='extrapolate')
         
         # Create new time axis at target frequency
-        duration = time_values[-1] - time_values[0]
+        duration = time_values_unique[-1] - time_values_unique[0]
         n_samples = int(duration * target_fs)
-        new_time = np.linspace(time_values[0], time_values[-1], n_samples)
+        new_time = np.linspace(time_values_unique[0], time_values_unique[-1], n_samples)
         
         # Resample
         resampled = f(new_time)
