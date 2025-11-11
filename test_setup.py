@@ -11,7 +11,7 @@ from dataset import create_paired_dataloaders
 from model import build_generators, build_discriminators
 
 
-def test_dataset_loading(data_path, batch_size=4, segment_length=512):
+def test_dataset_loading(data_path, batch_size=4, segment_length=512, target_fs=128):
     """Test if dataset loads correctly."""
     print("\n" + "=" * 60)
     print("Testing Dataset Loading")
@@ -23,7 +23,7 @@ def test_dataset_loading(data_path, batch_size=4, segment_length=512):
             batch_size=batch_size,
             segment_length=segment_length,
             stride=256,
-            normalize=True,
+            target_fs=target_fs,
             num_workers=0,  # Use 0 for testing
             dataset_type='bidmc'
         )
@@ -112,6 +112,8 @@ def main():
                        help='Batch size for testing')
     parser.add_argument('--segment_length', type=int, default=512,
                        help='Segment length')
+    parser.add_argument('--target_fs', type=int, default=128,
+                       help='Target sampling frequency in Hz')
     
     args = parser.parse_args()
     
@@ -127,7 +129,7 @@ def main():
     print(f"Data path: {args.data_path}")
     
     # Test dataset loading
-    dataset_ok = test_dataset_loading(args.data_path, args.batch_size, args.segment_length)
+    dataset_ok = test_dataset_loading(args.data_path, args.batch_size, args.segment_length, args.target_fs)
     
     # Test model initialization
     model_ok = test_model_initialization(args.segment_length)

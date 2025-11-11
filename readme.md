@@ -50,8 +50,9 @@ python train.py --data_path /path/to/bidmc/csv/files --batch_size 32 --epochs 20
 Available training arguments:
 - `--data_path`: Path to directory containing BIDMC CSV files (required)
 - `--dataset_type`: Dataset type, currently supports 'bidmc' (default: bidmc)
-- `--segment_length`: Length of each signal segment (default: 512)
+- `--segment_length`: Length of each signal segment in samples at target_fs (default: 512)
 - `--stride`: Stride for sliding window segmentation (default: 256, 50% overlap)
+- `--target_fs`: Target sampling frequency in Hz (default: 128)
 - `--batch_size`: Batch size (default: 32)
 - `--epochs`: Number of training epochs (default: 200)
 - `--lr`: Initial learning rate (default: 2e-4)
@@ -73,12 +74,36 @@ Available training arguments:
   - Spectrogram Discriminator: 2D CNN with kernel_size=(7,7), stride=2
   - Filter progression: 64 -> 128 -> 256 -> 512
 
-## Dataset Format
+## Dataset Format and Preprocessing
 The `dataset.py` module supports BIDMC format and is extensible for future datasets:
-- **BIDMC**: CSV files with columns [Time [s], RESP, PLETH, V, AVR, II]
-- Automatically segments signals with configurable window length and stride
-- Applies z-score normalization per segment
-- Returns tensors of shape (1, segment_length)
+
+### BIDMC Dataset
+- **Input**: CSV files with columns [Time [s], RESP, PLETH, V, AVR, II]
+- **PLETH column**: PPG signal
+- **II column**: ECG signal (Lead II)
+
+### Automatic Preprocessing Pipeline
+The dataset loader applies the following preprocessing steps automatically:
+
+1. **Resampling**: Signals are resampled to 128Hz using cubic interpolation
+   
+2. **Bandpass Filtering**:
+   - **ECG**: FIR filter with passband 3-45 Hz (101 taps)
+   - **PPG**: 4th-order Butterworth filter with passband 1-8 Hz
+   
+3. **Z-score Normalization**: Applied to the entire signal after filtering
+   - Mean: 0, Standard deviation: 1
+   
+4. **Segmentation**: Sliding window with configurable length and stride
+   - Default: 512 samples at 128Hz (~4 seconds)
+   - Default stride: 256 samples (50% overlap)
+   
+5. **Min-Max Normalization**: Applied per segment to range [-1, 1]
+
+### Output
+- Tensors of shape (1, segment_length)
+- All values normalized to [-1, 1] range
+- Ready for training without additional preprocessing
 
 To add support for other datasets, implement a new dataset class in `dataset.py` following the same interface.
 
@@ -111,6 +136,8 @@ This will:
   - Adam optimizer with β1=0.5, β2=0.999
 
 - **Data Preprocessing**:
+  - Resampling to 128Hz
+  - Bandpass filtering (FIR 3-45Hz for ECG, Butterworth 1-8Hz for PPG)
+  - Z-score normalization on full signal
   - Sliding window segmentation with configurable stride
-  - Z-score normalization per segment
-  - No assumptions about sampling rate (works with raw data)
+  - Min-max [-1, 1] normalization per segment

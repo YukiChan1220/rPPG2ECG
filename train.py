@@ -63,7 +63,7 @@ def train(args):
         batch_size=args.batch_size,
         segment_length=args.segment_length,
         stride=args.stride,
-        normalize=True,
+        target_fs=args.target_fs,
         num_workers=args.num_workers,
         dataset_type=args.dataset_type
     )
@@ -195,9 +195,11 @@ def parse_args():
     parser.add_argument('--dataset_type', type=str, default='bidmc', 
                        help='Dataset type (currently supports: bidmc)')
     parser.add_argument('--segment_length', type=int, default=512, 
-                       help='Length of each signal segment')
+                       help='Length of each signal segment in samples at target_fs')
     parser.add_argument('--stride', type=int, default=256, 
                        help='Stride for sliding window segmentation (default: 256 for 50%% overlap)')
+    parser.add_argument('--target_fs', type=int, default=128, 
+                       help='Target sampling frequency in Hz (default: 128)')
     
     # Training arguments
     parser.add_argument('--out_dir', type=str, default='checkpoints', help='output directory')
