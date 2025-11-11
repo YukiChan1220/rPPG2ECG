@@ -73,12 +73,36 @@ Available training arguments:
   - Spectrogram Discriminator: 2D CNN with kernel_size=(7,7), stride=2
   - Filter progression: 64 -> 128 -> 256 -> 512
 
-## Dataset Format
+## Dataset Format and Preprocessing
 The `dataset.py` module supports BIDMC format and is extensible for future datasets:
-- **BIDMC**: CSV files with columns [Time [s], RESP, PLETH, V, AVR, II]
-- Automatically segments signals with configurable window length and stride
-- Applies z-score normalization per segment
-- Returns tensors of shape (1, segment_length)
+
+### BIDMC Dataset
+- **Input**: CSV files with columns [Time [s], RESP, PLETH, V, AVR, II]
+- **PLETH column**: PPG signal
+- **II column**: ECG signal (Lead II)
+
+### Automatic Preprocessing Pipeline
+The dataset loader applies the following preprocessing steps automatically:
+
+1. **Resampling**: Signals are resampled to 128Hz using cubic interpolation
+   
+2. **Bandpass Filtering**:
+   - **ECG**: FIR filter with passband 3-45 Hz (101 taps)
+   - **PPG**: 4th-order Butterworth filter with passband 1-8 Hz
+   
+3. **Z-score Normalization**: Applied to the entire signal after filtering
+   - Mean: 0, Standard deviation: 1
+   
+4. **Segmentation**: Sliding window with configurable length and stride
+   - Default: 512 samples at 128Hz (~4 seconds)
+   - Default stride: 256 samples (50% overlap)
+   
+5. **Min-Max Normalization**: Applied per segment to range [-1, 1]
+
+### Output
+- Tensors of shape (1, segment_length)
+- All values normalized to [-1, 1] range
+- Ready for training without additional preprocessing
 
 To add support for other datasets, implement a new dataset class in `dataset.py` following the same interface.
 
